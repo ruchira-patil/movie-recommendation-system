@@ -2,7 +2,15 @@ import streamlit as st
 import pickle
 import pandas as pd
 import requests
+import gdown
+import os
 
+# Download files if not present
+if not os.path.exists("movies.pkl"):
+    gdown.download("https://drive.google.com/uc?id=1fPB8mkl4xkbdQDg-itIZJ4DfzqLhhFSq", "movies.pkl", quiet=False)
+
+if not os.path.exists("similarity.pkl"):
+    gdown.download("https://drive.google.com/uc?id=1AckfThonxQe10ZRkwlaKWydjYXIeaSkz", "similarity.pkl", quiet=False)
 
 # -----------------------------------
 # Page Configuration
