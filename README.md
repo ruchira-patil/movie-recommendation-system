@@ -281,8 +281,7 @@ BTech IT Student
 KJ Somaiya Institute of Technology
 
 GitHub:
-https://github.com/yourusername
-
+](https://github.com/ruchira-patil)
 ⭐ Support
 
 If you found this project helpful, please consider giving it a star on GitHub ⭐.
