@@ -2,33 +2,21 @@ import streamlit as st
 import pickle
 import pandas as pd
 import requests
+import requests
 import os
-from recommender import create_model
 
-# If files not exist → create them
-if not os.path.exists("movies.pkl") or not os.path.exists("similarity.pkl"):
-    create_model()
+def download_file(url, filename):
+    if not os.path.exists(filename):
+        response = requests.get(url)
+        with open(filename, "wb") as f:
+            f.write(response.content)
 
-
-# -----------------------------------
-# Load Model Safely
-# -----------------------------------
-
-try:
-    movies = pickle.load(open('movies.pkl', 'rb'))
-    similarity = pickle.load(open('similarity.pkl', 'rb'))
-except:
-    if os.path.exists("movies.pkl"):
-        os.remove("movies.pkl")
-    if os.path.exists("similarity.pkl"):
-        os.remove("similarity.pkl")
-
-    st.error("Model files corrupted. Please reload app.")
-    st.stop()
-
+# Download model files
+download_file("https://drive.google.com/uc?export=download&id=1fPB8mkl4xkbdQDg-itIZJ4DfzqLhhFSq", "movies.pkl")
+download_file("https://drive.google.com/uc?export=download&id=1AckfThonxQe10ZRkwlaKWydjYXIeaSkz", "similarity.pkl")
 
 # -----------------------------------
-# Page Config
+# Page Configuration
 # -----------------------------------
 
 st.set_page_config(
@@ -39,14 +27,16 @@ st.set_page_config(
 
 
 # -----------------------------------
-# UI Styling
+# Custom CSS Styling
 # -----------------------------------
 
 st.markdown("""
 <style>
+
 body {
     background-color: #0E1117;
 }
+
 .stButton>button {
     background-color: #E50914;
     color: white;
@@ -54,22 +44,37 @@ body {
     border-radius:10px;
     padding:10px 25px;
 }
+
 .stButton>button:hover {
     background-color: #ff1e1e;
+    color: white;
 }
+
 img {
     border-radius:12px;
 }
+
 .movie-title {
     text-align:center;
     font-weight:bold;
     font-size:16px;
     margin-top:5px;
 }
+
 .footer {
     text-align:center;
     margin-top:50px;
+    font-size:14px;
 }
+
+.poster {
+    transition: transform 0.3s;
+}
+
+.poster:hover {
+    transform: scale(1.08);
+}
+            
 </style>
 """, unsafe_allow_html=True)
 
@@ -78,11 +83,28 @@ img {
 # Header
 # -----------------------------------
 
-st.markdown("""
+st.markdown(
+"""
 <h1 style='text-align: center;'>🎬 Movie Recommendation System</h1>
-<p style='text-align: center;'>Discover movies similar to your favorite ones</p>
-""", unsafe_allow_html=True)
+<p style='text-align: center; font-size:18px;'>Discover movies similar to your favorite ones</p>
+""",
+unsafe_allow_html=True
+)
 
+
+# -----------------------------------
+# Load Saved Model Files
+# -----------------------------------
+
+movies = pickle.load(open('movies.pkl', 'rb'))
+
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.feature_extraction.text import CountVectorizer
+
+# Recompute similarity
+cv = CountVectorizer(max_features=5000, stop_words='english')
+vectors = cv.fit_transform(movies['tags']).toarray()
+similarity = cosine_similarity(vectors)
 
 # -----------------------------------
 # Genre Filter
@@ -93,62 +115,66 @@ genre_list = [
     "Thriller","Fantasy","Animation","Horror","Sci-Fi"
 ]
 
-selected_genre = st.selectbox("🎭 Filter movies by genre", genre_list)
+selected_genre = st.selectbox("🎭 Filter movies by genre (optional)", genre_list)
 
 filtered_movies = movies[movies['tags'].str.contains(selected_genre.lower(), na=False)]
 
-
 # -----------------------------------
-# Fetch Poster
+# Fetch Movie Poster from TMDB
 # -----------------------------------
 
 def fetch_poster(movie_id):
     try:
         url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key=4872e75be5684ead687ca2ac52bf8dc3&language=en-US"
-        data = requests.get(url).json()
+        response = requests.get(url)
+        data = response.json()
+
         poster_path = data.get('poster_path')
 
         if poster_path:
             return "https://image.tmdb.org/t/p/w500/" + poster_path
         else:
             return "https://via.placeholder.com/300x450?text=No+Poster"
+
     except:
-        return "https://via.placeholder.com/300x450?text=Error"
+        return "https://via.placeholder.com/300x450?text=No+Poster"
 
-
-# -----------------------------------
-# Fetch Details
-# -----------------------------------
 
 def fetch_movie_details(movie_id):
     try:
         url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key=4872e75be5684ead687ca2ac52bf8dc3&language=en-US"
-        return requests.get(url).json()
+        response = requests.get(url)
+        data = response.json()
+        return data
     except:
         return {}
-
-
-# -----------------------------------
-# Trending Movies
-# -----------------------------------
 
 st.subheader("🔥 Trending Movies")
 
 trending = movies.sample(5)
+
 cols = st.columns(5)
 
 for i in range(5):
     with cols[i]:
+
         movie_id = trending.iloc[i].movie_id
-        st.image(fetch_poster(movie_id))
-        st.markdown(f"**{trending.iloc[i].title}**")
+        poster = fetch_poster(movie_id)
+        title = trending.iloc[i].title
+
+        st.image(poster)
+        st.markdown(
+            f"<div class='movie-title'>{title}</div>",
+            unsafe_allow_html=True
+        )
 
         details = fetch_movie_details(movie_id)
 
         with st.expander("More Info"):
-            st.write("⭐", details.get("vote_average"))
-            st.write("📅", details.get("release_date"))
-            st.write("📝", details.get("overview"))
+            st.write("⭐ Rating:", details.get("vote_average", "N/A"))
+            st.write("📅 Release:", details.get("release_date", "N/A"))
+            st.write("⏱ Runtime:", details.get("runtime", "N/A"), "minutes")
+            st.write("📝 Overview:", details.get("overview", "No description available"))
 
 
 # -----------------------------------
@@ -156,38 +182,56 @@ for i in range(5):
 # -----------------------------------
 
 def recommend(movie):
-    index = movies[movies['title'] == movie].index[0]
-    distances = similarity[index]
+    movie_index = movies[movies['title'] == movie].index[0]
+    distances = similarity[movie_index]
 
-    movie_list = sorted(list(enumerate(distances)),
-                        reverse=True,
-                        key=lambda x: x[1])[1:6]
+    movie_list = sorted(
+        list(enumerate(distances)),
+        reverse=True,
+        key=lambda x: x[1]
+    )[1:6]
 
-    names = []
-    posters = []
+    recommended_movies = []
+    recommended_posters = []
 
     for i in movie_list:
         movie_id = movies.iloc[i[0]].movie_id
-        names.append(movies.iloc[i[0]].title)
-        posters.append(fetch_poster(movie_id))
 
-    return names, posters
+        recommended_movies.append(movies.iloc[i[0]].title)
+        recommended_posters.append(fetch_poster(movie_id))
+
+    return recommended_movies, recommended_posters
 
 
 # -----------------------------------
-# UI
+# Movie Selection UI
 # -----------------------------------
 
-selected_movie = st.selectbox("🎥 Select Movie", filtered_movies['title'].values)
+selected_movie = st.selectbox(
+    "🎥 Choose a movie",
+    filtered_movies['title'].values
+)
+
+
+# -----------------------------------
+# Recommendation Button
+# -----------------------------------
 
 if st.button("Recommend"):
-    names, posters = recommend(selected_movie)
 
-    cols = st.columns(5)
-    for i in range(5):
-        with cols[i]:
-            st.image(posters[i])
-            st.markdown(f"**{names[i]}**")
+    with st.spinner("Finding similar movies..."):
+
+        names, posters = recommend(selected_movie)
+
+        cols = st.columns(5)
+
+        for i in range(5):
+            with cols[i]:
+                st.image(posters[i])
+                st.markdown(
+                    f"<div class='movie-title'>{names[i]}</div>",
+                    unsafe_allow_html=True
+                )
 
 
 # -----------------------------------
@@ -195,4 +239,12 @@ if st.button("Recommend"):
 # -----------------------------------
 
 st.markdown("---")
-st.markdown("<div class='footer'>Built with ❤️ using Streamlit</div>", unsafe_allow_html=True)
+
+st.markdown(
+"""
+<div class="footer">
+Built with ❤️ using Python, Streamlit & Machine Learning
+</div>
+""",
+unsafe_allow_html=True
+)
