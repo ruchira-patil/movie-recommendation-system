@@ -4,15 +4,33 @@ import pandas as pd
 import requests
 import os
 
-def download_file(url, filename):
-    if not os.path.exists(filename):
-        response = requests.get(url)
-        with open(filename, "wb") as f:
-            f.write(response.content)
+def download_file_from_google_drive(file_id, destination):
+    if os.path.exists(destination):
+        return
 
-# Download model files
-download_file("https://drive.google.com/uc?export=download&id=1fPB8mkl4xkbdQDg-itIZJ4DfzqLhhFSq", "movies.pkl")
-download_file("https://drive.google.com/uc?export=download&id=1AckfThonxQe10ZRkwlaKWydjYXIeaSkz", "similarity.pkl")
+    URL = "https://drive.google.com/uc?export=download"
+    session = requests.Session()
+
+    response = session.get(URL, params={'id': file_id}, stream=True)
+    token = None
+
+    for key, value in response.cookies.items():
+        if key.startswith('download_warning'):
+            token = value
+
+    if token:
+        params = {'id': file_id, 'confirm': token}
+        response = session.get(URL, params=params, stream=True)
+
+    with open(destination, "wb") as f:
+        for chunk in response.iter_content(32768):
+            if chunk:
+                f.write(chunk)
+
+
+# Download files
+download_file_from_google_drive("1fPB8mkl4xkbdQDg-itIZJ4DfzqLhhFSq", "movies.pkl")
+download_file_from_google_drive("1AckfThonxQe10ZRkwlaKWydjYXIeaSkz", "similarity.pkl")
 
 # -----------------------------------
 # Page Configuration
