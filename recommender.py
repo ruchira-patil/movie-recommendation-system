@@ -28,20 +28,19 @@ def create_model():
     movies = pd.read_csv('tmdb_5000_movies.csv')
     credits = pd.read_csv('tmdb_5000_credits.csv')
 
-    # FIX: ensure correct column name
-    if 'title' not in credits.columns:
-        credits.rename(columns={'movie_title': 'title'}, inplace=True)
+    # 🔥 IMPORTANT FIX: merge on ID instead of title
+    credits.rename(columns={'movie_id': 'id'}, inplace=True)
+    movies = movies.merge(credits, on='id')
 
-    # Merge safely
-    movies = movies.merge(credits, on='title')
-
-    movies = movies[['movie_id','title','overview','genres','keywords','cast','crew']]
+    # Now select columns
+    movies = movies[['id','title','overview','genres','keywords','cast','crew']]
     movies.dropna(inplace=True)
 
-    # Convert everything to string (VERY IMPORTANT)
+    # Convert everything to string
     for col in ['overview','genres','keywords','cast','crew']:
         movies[col] = movies[col].astype(str)
 
+    # Create tags
     movies['tags'] = movies['overview'] + " " + movies['genres'] + " " + movies['keywords']
 
     from sklearn.feature_extraction.text import CountVectorizer
@@ -53,5 +52,5 @@ def create_model():
     similarity = cosine_similarity(vectors)
 
     import pickle
-    pickle.dump(movies[['movie_id','title','tags']], open('movies.pkl','wb'))
+    pickle.dump(movies[['id','title','tags']], open('movies.pkl','wb'))
     pickle.dump(similarity, open('similarity.pkl','wb'))
