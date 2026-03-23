@@ -3,42 +3,11 @@ import pickle
 import pandas as pd
 import requests
 import os
+from recommender import create_model
 
-# -----------------------------------
-# Download model files from Google Drive
-# -----------------------------------
-
-def download_file_from_google_drive(file_id, destination):
-    URL = "https://drive.google.com/uc?export=download"
-    session = requests.Session()
-
-    # Check if file exists and is valid
-    if os.path.exists(destination):
-        if os.path.getsize(destination) > 1000000:
-            return
-        else:
-            os.remove(destination)
-
-    response = session.get(URL, params={'id': file_id}, stream=True)
-
-    token = None
-    for key, value in response.cookies.items():
-        if key.startswith('download_warning'):
-            token = value
-
-    if token:
-        params = {'id': file_id, 'confirm': token}
-        response = session.get(URL, params=params, stream=True)
-
-    with open(destination, "wb") as f:
-        for chunk in response.iter_content(32768):
-            if chunk:
-                f.write(chunk)
-
-
-# Download files
-download_file_from_google_drive("1fPB8mkl4xkbdQDg-itIZJ4DfzqLhhFSq", "movies.pkl")
-download_file_from_google_drive("1AckfThonxQe10ZRkwlaKWydjYXIeaSkz", "similarity.pkl")
+# If files not exist → create them
+if not os.path.exists("movies.pkl") or not os.path.exists("similarity.pkl"):
+    create_model()
 
 
 # -----------------------------------
