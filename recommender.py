@@ -15,7 +15,6 @@ def download_csv(url, filename):
 
 def create_model():
 
-    # Download datasets automatically
     download_csv(
         "https://raw.githubusercontent.com/ashishpatel26/ML-Datasets/main/tmdb_5000_movies.csv",
         "tmdb_5000_movies.csv"
@@ -29,18 +28,30 @@ def create_model():
     movies = pd.read_csv('tmdb_5000_movies.csv')
     credits = pd.read_csv('tmdb_5000_credits.csv')
 
+    # FIX: ensure correct column name
+    if 'title' not in credits.columns:
+        credits.rename(columns={'movie_title': 'title'}, inplace=True)
+
+    # Merge safely
     movies = movies.merge(credits, on='title')
 
     movies = movies[['movie_id','title','overview','genres','keywords','cast','crew']]
     movies.dropna(inplace=True)
 
-    movies['tags'] = movies['overview'] + movies['genres'] + movies['keywords']
-    movies['tags'] = movies['tags'].astype(str)
+    # Convert everything to string (VERY IMPORTANT)
+    for col in ['overview','genres','keywords','cast','crew']:
+        movies[col] = movies[col].astype(str)
+
+    movies['tags'] = movies['overview'] + " " + movies['genres'] + " " + movies['keywords']
+
+    from sklearn.feature_extraction.text import CountVectorizer
+    from sklearn.metrics.pairwise import cosine_similarity
 
     cv = CountVectorizer(max_features=5000, stop_words='english')
     vectors = cv.fit_transform(movies['tags']).toarray()
 
     similarity = cosine_similarity(vectors)
 
+    import pickle
     pickle.dump(movies[['movie_id','title','tags']], open('movies.pkl','wb'))
     pickle.dump(similarity, open('similarity.pkl','wb'))
