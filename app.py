@@ -4,16 +4,24 @@ import pandas as pd
 import requests
 import os
 
-def download_file_from_google_drive(file_id, destination):
-    if os.path.exists(destination):
-        return
+# -----------------------------------
+# Download model files from Google Drive
+# -----------------------------------
 
+def download_file_from_google_drive(file_id, destination):
     URL = "https://drive.google.com/uc?export=download"
     session = requests.Session()
 
-    response = session.get(URL, params={'id': file_id}, stream=True)
-    token = None
+    # Check if file exists and is valid
+    if os.path.exists(destination):
+        if os.path.getsize(destination) > 1000000:
+            return
+        else:
+            os.remove(destination)
 
+    response = session.get(URL, params={'id': file_id}, stream=True)
+
+    token = None
     for key, value in response.cookies.items():
         if key.startswith('download_warning'):
             token = value
@@ -32,8 +40,26 @@ def download_file_from_google_drive(file_id, destination):
 download_file_from_google_drive("1fPB8mkl4xkbdQDg-itIZJ4DfzqLhhFSq", "movies.pkl")
 download_file_from_google_drive("1AckfThonxQe10ZRkwlaKWydjYXIeaSkz", "similarity.pkl")
 
+
 # -----------------------------------
-# Page Configuration
+# Load Model Safely
+# -----------------------------------
+
+try:
+    movies = pickle.load(open('movies.pkl', 'rb'))
+    similarity = pickle.load(open('similarity.pkl', 'rb'))
+except:
+    if os.path.exists("movies.pkl"):
+        os.remove("movies.pkl")
+    if os.path.exists("similarity.pkl"):
+        os.remove("similarity.pkl")
+
+    st.error("Model files corrupted. Please reload app.")
+    st.stop()
+
+
+# -----------------------------------
+# Page Config
 # -----------------------------------
 
 st.set_page_config(
@@ -44,16 +70,14 @@ st.set_page_config(
 
 
 # -----------------------------------
-# Custom CSS Styling
+# UI Styling
 # -----------------------------------
 
 st.markdown("""
 <style>
-
 body {
     background-color: #0E1117;
 }
-
 .stButton>button {
     background-color: #E50914;
     color: white;
@@ -61,37 +85,22 @@ body {
     border-radius:10px;
     padding:10px 25px;
 }
-
 .stButton>button:hover {
     background-color: #ff1e1e;
-    color: white;
 }
-
 img {
     border-radius:12px;
 }
-
 .movie-title {
     text-align:center;
     font-weight:bold;
     font-size:16px;
     margin-top:5px;
 }
-
 .footer {
     text-align:center;
     margin-top:50px;
-    font-size:14px;
 }
-
-.poster {
-    transition: transform 0.3s;
-}
-
-.poster:hover {
-    transform: scale(1.08);
-}
-            
 </style>
 """, unsafe_allow_html=True)
 
@@ -100,21 +109,10 @@ img {
 # Header
 # -----------------------------------
 
-st.markdown(
-"""
+st.markdown("""
 <h1 style='text-align: center;'>🎬 Movie Recommendation System</h1>
-<p style='text-align: center; font-size:18px;'>Discover movies similar to your favorite ones</p>
-""",
-unsafe_allow_html=True
-)
-
-
-# -----------------------------------
-# Load Saved Model Files
-# -----------------------------------
-
-movies = pickle.load(open('movies.pkl', 'rb'))
-similarity = pickle.load(open('similarity.pkl', 'rb'))
+<p style='text-align: center;'>Discover movies similar to your favorite ones</p>
+""", unsafe_allow_html=True)
 
 
 # -----------------------------------
@@ -126,66 +124,62 @@ genre_list = [
     "Thriller","Fantasy","Animation","Horror","Sci-Fi"
 ]
 
-selected_genre = st.selectbox("🎭 Filter movies by genre (optional)", genre_list)
+selected_genre = st.selectbox("🎭 Filter movies by genre", genre_list)
 
 filtered_movies = movies[movies['tags'].str.contains(selected_genre.lower(), na=False)]
 
+
 # -----------------------------------
-# Fetch Movie Poster from TMDB
+# Fetch Poster
 # -----------------------------------
 
 def fetch_poster(movie_id):
     try:
         url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key=4872e75be5684ead687ca2ac52bf8dc3&language=en-US"
-        response = requests.get(url)
-        data = response.json()
-
+        data = requests.get(url).json()
         poster_path = data.get('poster_path')
 
         if poster_path:
             return "https://image.tmdb.org/t/p/w500/" + poster_path
         else:
             return "https://via.placeholder.com/300x450?text=No+Poster"
-
     except:
-        return "https://via.placeholder.com/300x450?text=No+Poster"
+        return "https://via.placeholder.com/300x450?text=Error"
 
+
+# -----------------------------------
+# Fetch Details
+# -----------------------------------
 
 def fetch_movie_details(movie_id):
     try:
         url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key=4872e75be5684ead687ca2ac52bf8dc3&language=en-US"
-        response = requests.get(url)
-        data = response.json()
-        return data
+        return requests.get(url).json()
     except:
         return {}
+
+
+# -----------------------------------
+# Trending Movies
+# -----------------------------------
 
 st.subheader("🔥 Trending Movies")
 
 trending = movies.sample(5)
-
 cols = st.columns(5)
 
 for i in range(5):
     with cols[i]:
-
         movie_id = trending.iloc[i].movie_id
-        poster = fetch_poster(movie_id)
-        title = trending.iloc[i].title
-
-        st.image(poster)
-        st.markdown(
-            f"<div class='movie-title'>{title}</div>",
-            unsafe_allow_html=True
-        )
+        st.image(fetch_poster(movie_id))
+        st.markdown(f"**{trending.iloc[i].title}**")
 
         details = fetch_movie_details(movie_id)
 
         with st.expander("More Info"):
-            st.write("⭐ Rating:", details.get("vote_average", "N/A"))
-            st.write("📅 Release:", details.get("release_date", "N/A"))
-            st.write("⏱ Runtime:", details.get("runtime", "N/A"), "minutes")
-            st.write("📝 Overview:", details.get("overview", "No description available"))
+            st.write("⭐", details.get("vote_average"))
+            st.write("📅", details.get("release_date"))
+            st.write("📝", details.get("overview"))
 
 
 # -----------------------------------
@@ -193,56 +187,38 @@ for i in range(5):
 # -----------------------------------
 
 def recommend(movie):
-    movie_index = movies[movies['title'] == movie].index[0]
-    distances = similarity[movie_index]
+    index = movies[movies['title'] == movie].index[0]
+    distances = similarity[index]
 
-    movie_list = sorted(
-        list(enumerate(distances)),
-        reverse=True,
-        key=lambda x: x[1]
-    )[1:6]
+    movie_list = sorted(list(enumerate(distances)),
+                        reverse=True,
+                        key=lambda x: x[1])[1:6]
 
-    recommended_movies = []
-    recommended_posters = []
+    names = []
+    posters = []
 
     for i in movie_list:
         movie_id = movies.iloc[i[0]].movie_id
+        names.append(movies.iloc[i[0]].title)
+        posters.append(fetch_poster(movie_id))
 
-        recommended_movies.append(movies.iloc[i[0]].title)
-        recommended_posters.append(fetch_poster(movie_id))
-
-    return recommended_movies, recommended_posters
-
-
-# -----------------------------------
-# Movie Selection UI
-# -----------------------------------
-
-selected_movie = st.selectbox(
-    "🎥 Choose a movie",
-    filtered_movies['title'].values
-)
+    return names, posters
 
 
 # -----------------------------------
-# Recommendation Button
+# UI
 # -----------------------------------
+
+selected_movie = st.selectbox("🎥 Select Movie", filtered_movies['title'].values)
 
 if st.button("Recommend"):
+    names, posters = recommend(selected_movie)
 
-    with st.spinner("Finding similar movies..."):
-
-        names, posters = recommend(selected_movie)
-
-        cols = st.columns(5)
-
-        for i in range(5):
-            with cols[i]:
-                st.image(posters[i])
-                st.markdown(
-                    f"<div class='movie-title'>{names[i]}</div>",
-                    unsafe_allow_html=True
-                )
+    cols = st.columns(5)
+    for i in range(5):
+        with cols[i]:
+            st.image(posters[i])
+            st.markdown(f"**{names[i]}**")
 
 
 # -----------------------------------
@@ -250,12 +226,4 @@ if st.button("Recommend"):
 # -----------------------------------
 
 st.markdown("---")
-
-st.markdown(
-"""
-<div class="footer">
-Built with ❤️ using Python, Streamlit & Machine Learning
-</div>
-""",
-unsafe_allow_html=True
-)
+st.markdown("<div class='footer'>Built with ❤️ using Streamlit</div>", unsafe_allow_html=True)
