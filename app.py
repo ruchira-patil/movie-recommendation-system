@@ -2,15 +2,17 @@ import streamlit as st
 import pickle
 import pandas as pd
 import requests
-import gdown
 import os
 
-# Download files if not present
-if not os.path.exists("movies.pkl"):
-    gdown.download("https://drive.google.com/uc?id=1fPB8mkl4xkbdQDg-itIZJ4DfzqLhhFSq", "movies.pkl", quiet=False)
+def download_file(url, filename):
+    if not os.path.exists(filename):
+        response = requests.get(url)
+        with open(filename, "wb") as f:
+            f.write(response.content)
 
-if not os.path.exists("similarity.pkl"):
-    gdown.download("https://drive.google.com/uc?id=1AckfThonxQe10ZRkwlaKWydjYXIeaSkz", "similarity.pkl", quiet=False)
+# Download model files
+download_file("https://drive.google.com/uc?export=download&id=1fPB8mkl4xkbdQDg-itIZJ4DfzqLhhFSq", "movies.pkl")
+download_file("https://drive.google.com/uc?export=download&id=1AckfThonxQe10ZRkwlaKWydjYXIeaSkz", "similarity.pkl")
 
 # -----------------------------------
 # Page Configuration
